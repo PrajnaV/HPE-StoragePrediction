@@ -201,14 +201,15 @@ async def get_weekly_predictions():
             results[directory] = None
             continue
 
-        # Predict 7-day (42 steps) sequence
+         # Predict 7-day (42 steps) sequence
         pred_scaled = model.predict(X_input)  # shape: (1, 42)
 
-        # Inverse transform the last predicted value (7th day = 42nd step)
-        last_pred_scaled = pred_scaled[0, -1].reshape(-1, 1)
-        last_pred_gb = scaler.inverse_transform(last_pred_scaled)
+        # Inverse transform the full prediction to match the scaler's shape
+        pred_original = scaler.inverse_transform(pred_scaled.reshape(-1, 1))  # shape: (42, 1)
 
-        results[directory] = round(float(last_pred_gb[0][0]), 2)
+        # Take only the final prediction (42nd step = 7th day)
+        results[directory] = round(float(pred_original[-1][0]), 2)
+
 
     return results
 
@@ -433,7 +434,7 @@ async def get_weekly_line_predictions(directory: str):
         return JSONResponse({"error": f"Model or scaler for {directory} not found"}, status_code=404)
 
     # Preprocess input for predictions
-    input_data = await preprocess_input_daily(directory, scaler)
+    input_data = await preprocess_input(directory, scaler)
 
     if input_data is None:
         return JSONResponse({"error": f"Failed to preprocess input for {directory}"}, status_code=400)
@@ -443,7 +444,7 @@ async def get_weekly_line_predictions(directory: str):
 
     # Predict values and inverse transform
     pred_scaled = model.predict(input_data)
-    pred_original = scaler.inverse_transform(pred_scaled)
+    pred_original = scaler.inverse_transform(pred_scaled.reshape(-1, 1))
 
     # For line graph: Return predicted values along with timestamps
     results = [{"predicted_value": round(float(val), 2)} for i, val in
